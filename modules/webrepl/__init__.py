@@ -389,6 +389,7 @@ class Webrepl:
 
 
 class WR_KEY:
+    _PIN = "PIN: "
     _DIR = "DIR: "
     _MEMORY = "GC: "
     _SIGNAL = "SIG: "

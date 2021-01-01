@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 /modules/rapor/keep
 /modules/rapor/mode
+/modules/scanag/RESULTS

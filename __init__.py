@@ -567,6 +567,11 @@ class NESP_OT_Communication(Operator, Nodal):
                     if len(nums) > 2:
                         pr_dev.memory = f"%{(int(nums[1]) * 100) // int(nums[0])}"
 
+                # elif i.startswith(WR_KEY._PIN):
+                #     # PIN: 0 0
+                #     #    PinNo PinValue
+                #     ans = i.replace(WR_KEY._PIN, "", 1).strip().split()
+
                 elif i.startswith(WR_KEY._SIGNAL):
                     # SIG: -72
                     # https://hackster.imgix.net/uploads/attachments/1004079/frsy0u3k10zeout_large_zLKM8zCIqi.jpg?auto=compress%2Cformat&w=740&h=555&fit=max
@@ -1221,12 +1226,14 @@ class NESP_PT_FileSystem(Panel):
 class NESP_UL_Pins(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         row = layout.row(align=True)
-        row.scale_x = 0
-        row.prop(item, "no", text="", emboss=False, slider=True)
-        row.scale_x = 5
+        row.prop(item, "no", text="", emboss=False)
+        row.scale_x = 3
         row.prop(item, "name", text="", emboss=False)
-        row.scale_x = 2
-        row.prop(item, "io", text="", emboss=False) # TRACKING_CLEAR_BACKWARDS  TRACKING_CLEAR_FORWARDS
+        row.scale_x = 1
+        if data.mode == "setup":
+            row.prop(item, "io", emboss=True, expand=True) # TRACKING_CLEAR_BACKWARDS  TRACKING_CLEAR_FORWARDS
+        else:
+            row.prop(item, "value", text="", icon=("OUTLINER_OB_LIGHT" if item.value else "LIGHT"), emboss=False)
 
         len_item = len(data.items)
         act_indx = data.active_item_index
@@ -1262,8 +1269,8 @@ class NESP_PR_PinItem(PropertyGroup):
     )
     io: EnumProperty(
         items=[
-            ("Pin.IN", "IN", "Pin.IN"),
-            ("Pin.OUT", "OUT", "Pin.OUT"),
+            ("0", "IN", "Pin.IN"),
+            ("1", "OUT", "Pin.OUT"),
         ],
         name="Pin Mode"
     )
@@ -1329,33 +1336,35 @@ class NESP_OT_Pins(Operator):
             ("add", "Add", ""),
             ("remove", "Remove", ""),
             ("clear", "Remove", ""),
-            ("import", "Import", ""),
-            ("export", "Export", ""),
+            ("download", "Download", ""),
+            ("upload", "Upload", ""),
             ("reload", "Reload", ""),
         ]
     )
 
     def execute(self, context):
         pr_com = context.scene.nesp_pr_communication
+        pr_dev = context.scene.nesp_pr_device
         pr_pin = context.scene.nesp_pr_pins
 
         if self.action == "add":
             pinler = {
                 "esp32": [0, 2, 4, 5, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19,
                           21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39],
-                "esp8266": [0, 1, 2, 3, 4, 5, 12, 13, 14, 15]
+                "esp8266": [0, 2, 3, 4, 5, 12, 13, 14, 15]
              }
+            pin_list = pinler.get(pr_dev.platform, pinler["esp8266"])
             for i in pr_pin.items:
-                if i.no in pinler["esp32"]:
-                    pinler["esp32"].remove(i.no)
+                if i.no in pin_list:
+                    pin_list.remove(i.no)
 
             item = pr_pin.items.add()
-            item.no = pinler["esp32"][0] if pinler["esp32"] else 0
+            item.no = pin_list[0] if pin_list else 0
             item.io = "Pin.OUT"
             item.name = "Pin Name"
             pr_pin.active_item_index = len(pr_pin.items) - 1
 
-        if self.action == "remove":
+        elif self.action == "remove":
             act_indx = pr_pin.active_item_index
             len_item = len(pr_pin.items)
             if len_item > act_indx:
@@ -1364,9 +1373,17 @@ class NESP_OT_Pins(Operator):
             if len_item - 1 > 0 and act_indx - 1 > -1:
                 pr_pin.active_item_index -= 1
 
-
-        if self.action == "clear":
+        elif self.action == "clear":
             pr_pin.items.clear()
+
+        elif self.action == "download":
+            cv = "[print('PIN:', k, v.value()) for k, v in _npin_.items()] if '_npin_' in globals() else 0"
+            pr_com.queue_list.append(cv)
+
+        elif self.action == "upload":
+            il = [(i.no, int(i.io)) for i in pr_pin.items]
+            cv = "from machine import Pin;_npin_={i: Pin(i, j) for i,j in " + str(il) + "}"
+            pr_com.queue_list.append(cv)
 
         return {'FINISHED'}
 
@@ -1411,8 +1428,8 @@ class NESP_PT_Pins(Panel):
         # col1.label(text="", icon="BLANK1")
         col1.separator()
         # col1.label(text=" ", icon="BLANK1")
-        col1.operator("nesp.pins", text="", icon="EXPORT").action = "export"
-        col1.operator("nesp.pins", text="", icon="IMPORT").action = "import"
+        col1.operator("nesp.pins", text="", icon="EXPORT").action = "upload"
+        col1.operator("nesp.pins", text="", icon="IMPORT").action = "download"
 
         col2 = row.column(align=True)
         col2.template_list(
