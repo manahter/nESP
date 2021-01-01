@@ -1,0 +1,9 @@
+
+    name="getmac",
+    version=__version__,
+    author="Christopher Goes",
+    author_email="ghostofgoes@gmail.com",
+    description="Get MAC addresses of remote hosts and local interfaces",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    url="https://github.com/GhostofGoes/getmac",
