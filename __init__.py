@@ -2,6 +2,7 @@
 import os
 import re
 import time
+from threading import Timer
 from datetime import timedelta
 from mathutils import Vector, Matrix
 from mathutils.geometry import intersect_sphere_sphere_2d, intersect_point_line, intersect_line_line_2d
@@ -493,6 +494,7 @@ class NESP_OT_Communication(Operator, Nodal):
     pr_com = None
     pr_dev = None
     pr_fsy = None
+    pr_pin = None
     delay = 0
 
     def n_invoke(self, context, event):
@@ -501,8 +503,19 @@ class NESP_OT_Communication(Operator, Nodal):
         self.pr_com = context.scene.nesp_pr_communication
         self.pr_dev = context.scene.nesp_pr_device
         self.pr_fsy = context.scene.nesp_pr_filesystem
+        self.pr_pin = context.scene.nesp_pr_pins
 
+        # platformu öğren
+        bpy.ops.nesp.commands(command=WR_CMD.PLATFORM)
+
+        # Dosyalarını öğren
         bpy.ops.nesp.filesystem()
+
+        # Pin durumlarını oku
+        bpy.ops.nesp.pins(action="reload")
+
+        # boot dosyasını oku.
+        Timer(1, lambda: self.pr_com.queue_list.append((WR_KEY._FILE_READ, "boot.py"))).start()
 
         return self.timer_add(context)
 
@@ -524,7 +537,6 @@ class NESP_OT_Communication(Operator, Nodal):
                 if val[0] == WR_KEY._FILE_WRITE:
                     dev.put_file_content(val[1], val[2])
                 elif val[0] == WR_KEY._FILE_READ:
-                    print("Getur\n"*5)
                     dev.get_file_content(val[1])
             else:
                 dev.send(val)
@@ -537,7 +549,10 @@ class NESP_OT_Communication(Operator, Nodal):
 
             return {'PASS_THROUGH'}
 
-        a = dev.receives
+        # a = dev.receives
+        a = dev.receives.copy()
+        dev.receives.clear()
+
         if a and len(a):
             cmds = WR_CMD.all()
             for i in a:
@@ -559,6 +574,10 @@ class NESP_OT_Communication(Operator, Nodal):
                     pr_dev.micropy_version = res.get("version", "")
                     pr_dev.release = res.get("release", "")
 
+                elif i.startswith(WR_KEY._PLATFORM):
+                    # PLT: esp8266
+                    pr_dev.platform = i.replace(WR_KEY._PLATFORM, "", 1).strip()
+
                 elif i.startswith(WR_KEY._MEMORY):
                     # GC: total: WR_KEY, used: 3152, free: 34800
                     ans = i.replace(WR_KEY._MEMORY, "", 1).strip()
@@ -567,10 +586,33 @@ class NESP_OT_Communication(Operator, Nodal):
                     if len(nums) > 2:
                         pr_dev.memory = f"%{(int(nums[1]) * 100) // int(nums[0])}"
 
-                # elif i.startswith(WR_KEY._PIN):
-                #     # PIN: 0 0
-                #     #    PinNo PinValue
-                #     ans = i.replace(WR_KEY._PIN, "", 1).strip().split()
+                elif i.startswith(WR_KEY._PIN):
+                    # PIN: 0 0
+                    #    PinNo PinValue
+                    ans = i.replace(WR_KEY._PIN, "", 1).strip().split(maxsplit=3)
+
+                    if len(ans) == 4:
+                        no = int(ans[0])
+                        value = bool(int(ans[1]))
+                        io = bool(int(ans[2]))
+                        name = str(ans[3])
+
+                        data = self.pr_pin
+                        isok = False
+                        for p in data.items:
+                            if p.no == no:
+                                p.io = io
+                                p.name = name
+                                p.value = value
+                                isok = True
+
+                        if not isok:
+                            item = data.items.add()
+                            item.no = no
+                            item.io = io
+                            item.name = name
+                            item.value = value
+                            data.active_item_index = len(data.items) - 1
 
                 elif i.startswith(WR_KEY._SIGNAL):
                     # SIG: -72
@@ -694,9 +736,9 @@ class NESP_OT_Communication(Operator, Nodal):
                 else:
                     self.pr_com.append_incoming(i)
 
-            a = dev.receives
-            if a:
-                a.clear()
+            # a = dev.receives
+            # if a:
+            #     a.clear()
 
         # dev'in bir değişkeninde WebRepl ile alınan cevaplar depolanıyor olacak.
         # Oradaki cevapları alıyoruz okuyoruz.
@@ -1226,34 +1268,32 @@ class NESP_PT_FileSystem(Panel):
 class NESP_UL_Pins(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         row = layout.row(align=True)
-        row.prop(item, "no", text="", emboss=False)
-        row.scale_x = 3
-        row.prop(item, "name", text="", emboss=False)
-        row.scale_x = 1
-        if data.mode == "setup":
-            row.prop(item, "io", emboss=True, expand=True) # TRACKING_CLEAR_BACKWARDS  TRACKING_CLEAR_FORWARDS
+        is_setup = data.mode == "setup"
+        is_out = item.io
+        if is_setup:
+            row.prop(item, "io", text="", icon=("PINNED" if is_out else "UNPINNED"))
+            row.prop(item, "no", text="")
+            row.scale_x = 8
+            row.prop(item, "name", text="", emboss=False)
+            row.scale_x = 1
+
         else:
-            row.prop(item, "value", text="", icon=("OUTLINER_OB_LIGHT" if item.value else "LIGHT"), emboss=False)
+            # row.label(text=f"{item.no} | {('O' if is_out else 'I')} | {item.name}",
+            row.label(text=f"{item.no}   {item.name}",
+                      icon=("PINNED" if is_out else "UNPINNED"))
 
-        len_item = len(data.items)
-        act_indx = data.active_item_index
-        # Eğer bu item seçiliyse;
-        if len_item > act_indx and item == data.items[act_indx]:
-            # print("context", context)
-            # print("layout", layout)
-            # print("data", data)
-            # print("item", item)
-            # print("icon", icon)
-            # print("active_data", active_data)
-            # print("active_propname", active_propname)
-            # print("", dir(data.items))
-            # print("", )
-            # print("", )
-
-            pr = context.scene.nesp_pr_pins
-            md = pr.mode
-            if md == "os.dir" or (md == "im.dir" and (not pr.path or pr.path == os.sep)):
-                row.operator("nesp.pins", text="", emboss=False, icon="TRASH").action = "remove"
+        if is_out:
+            if is_setup:
+                row.prop(item, "value", text="", icon=("OUTLINER_OB_LIGHT" if item.value else "LIGHT"))
+            else:
+                row.operator(
+                    "nesp.pins",
+                    text="",
+                    emboss=False,
+                    icon=("OUTLINER_OB_LIGHT" if item.value else "LIGHT")
+                ).pin_value = f"{item.no} {not item.value}"
+        else:
+            row.label(icon=("SNAP_ON" if item.value else "SNAP_OFF"))
 
 
 class NESP_PR_PinItem(PropertyGroup):
@@ -1267,15 +1307,17 @@ class NESP_PR_PinItem(PropertyGroup):
         min=0,
         max=50
     )
-    io: EnumProperty(
-        items=[
-            ("0", "IN", "Pin.IN"),
-            ("1", "OUT", "Pin.OUT"),
-        ],
-        name="Pin Mode"
+    io: BoolProperty(
+        name="Pin Input/Output",
+        description="Fill: Output, Unfill: Input"
     )
+    # def update_value(self, context):
+    #     if self.no == 0:
+    #         bpy.data.materials['Işık'].node_tree.nodes["Principled BSDF"].inputs[18].default_value = (50, 0)[self.value]
+
     value: BoolProperty(
-        name="Off/On"
+        name="Off/On",
+        # update=update_value
     )
 
     @classmethod
@@ -1341,13 +1383,20 @@ class NESP_OT_Pins(Operator):
             ("reload", "Reload", ""),
         ]
     )
+    pin_value: StringProperty()
 
     def execute(self, context):
         pr_com = context.scene.nesp_pr_communication
         pr_dev = context.scene.nesp_pr_device
         pr_pin = context.scene.nesp_pr_pins
 
-        if self.action == "add":
+        if self.pin_value:
+            # Pin durumunu değiştir
+            no, value = self.pin_value.split()
+            cv = f"_npin_[{no}][0].value({value}) if '_npin_' in globals() and {no} in _npin_ else 0"
+            pr_com.queue_list.append(cv)
+
+        elif self.action == "add":
             pinler = {
                 "esp32": [0, 2, 4, 5, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19,
                           21, 22, 23, 25, 26, 27, 32, 33, 34, 35, 36, 39],
@@ -1360,7 +1409,7 @@ class NESP_OT_Pins(Operator):
 
             item = pr_pin.items.add()
             item.no = pin_list[0] if pin_list else 0
-            item.io = "Pin.OUT"
+            item.io = True
             item.name = "Pin Name"
             pr_pin.active_item_index = len(pr_pin.items) - 1
 
@@ -1376,15 +1425,34 @@ class NESP_OT_Pins(Operator):
         elif self.action == "clear":
             pr_pin.items.clear()
 
-        elif self.action == "download":
-            cv = "[print('PIN:', k, v.value()) for k, v in _npin_.items()] if '_npin_' in globals() else 0"
-            pr_com.queue_list.append(cv)
-
         elif self.action == "upload":
-            il = [(i.no, int(i.io)) for i in pr_pin.items]
-            cv = "from machine import Pin;_npin_={i: Pin(i, j) for i,j in " + str(il) + "}"
-            pr_com.queue_list.append(cv)
+            il = [(i.no, int(i.io), i.name, i.value) for i in pr_pin.items]
+            pins_create = WR_CMD.PINS.format(il)
+            pins_write = WR_CMD.PINS_WRITE
+            pr_com.queue_list.append(pins_create)
+            pr_com.queue_list.append(pins_write)
 
+            # Pinler modülünü karşıya yaz
+            pr_com.queue_list.append((WR_KEY._FILE_WRITE, "\n".join([pins_create, pins_write]), WR_CMD.PINS_FILE))
+
+            # boot dosyasında pin import yoksa, importu ekle
+            if WR_CMD.BOOT_FILE in bpy.data.texts:
+                imp = WR_CMD.PINS_IMPORT
+                txt_file = bpy.data.texts[WR_CMD.BOOT_FILE]
+                if not any([i.body.startswith(imp) for i in txt_file.lines]):
+
+                    txt_file.cursor_set(0)
+                    txt_file.write(f"{imp}\n")
+
+                    # Boot modülünü karşıya yaz
+                    pr_com.queue_list.append((WR_KEY._FILE_WRITE, txt_file.as_string(), WR_CMD.BOOT_FILE))
+
+        if self.action in ("reload", "download", "upload") or self.pin_value:
+            pr_pin.items.clear()
+            pr_pin.active_item_index = 0
+            Timer(0.2, lambda: pr_com.queue_list.append(WR_CMD.PINS_READ)).start()
+
+        self.pin_value = ""
         return {'FINISHED'}
 
 
@@ -1400,9 +1468,12 @@ class NESP_PT_Pins(Panel):
 
         layout = self.layout
         # layout.enabled = context.scene.nesp_pr_connection.isconnected
-        row1 = layout.row()
+        row1 = layout.row(align=True)
         row1.operator("nesp.pins", text="", icon="FILE_REFRESH").action = "reload"
+        row1.separator()
+        row1.operator("nesp.pins", text="", icon="IMPORT").action = "download"
         row1.prop(pr, "mode", expand=True)
+        row1.operator("nesp.pins", text="", icon="EXPORT").action = "upload"
 
         # row2 = layout.row(align=True)
         # row2.operator("nesp.pins", text="", icon="ADD").action = "add"
@@ -1428,8 +1499,6 @@ class NESP_PT_Pins(Panel):
         # col1.label(text="", icon="BLANK1")
         col1.separator()
         # col1.label(text=" ", icon="BLANK1")
-        col1.operator("nesp.pins", text="", icon="EXPORT").action = "upload"
-        col1.operator("nesp.pins", text="", icon="IMPORT").action = "download"
 
         col2 = row.column(align=True)
         col2.template_list(

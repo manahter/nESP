@@ -418,6 +418,13 @@ class WR_CMD:
     CONTROL_D = "\x04"
     RESET = "\x04"
 
+    BOOT_FILE = "boot.py"
+    PINS = "from machine import Pin;_npin_={{i: [Pin(i, j), j, name, val] for i,j,name,val in {}}}"
+    PINS_READ = "_=[print('PIN:', k,v[0].value(),v[1],v[2]) for k,v in _npin_.items()] if '_npin_' in globals() else 0"
+    PINS_WRITE = "_=[val[0].value(val[3]) for i, val in _npin_.items()]"
+    PINS_IMPORT = "from npin import *"
+    PINS_FILE = "npin.py"
+
     MEMORY = "__import__('micropython').mem_info()"
     """
     stack: 2128 out of 8192
