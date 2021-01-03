@@ -417,13 +417,39 @@ class WR_CMD:
     CONTROL_C = "\x03"
     CONTROL_D = "\x04"
     RESET = "\x04"
+    BOOT_FILE = "/boot.py"
 
-    BOOT_FILE = "boot.py"
-    PINS = "from machine import Pin;_npin_={{i: [Pin(i, j), j, name, val] for i,j,name,val in {}}}"
-    PINS_READ = "_=[print('PIN:', k,v[0].value(),v[1],v[2]) for k,v in _npin_.items()] if '_npin_' in globals() else 0"
-    PINS_WRITE = "_=[val[0].value(val[3]) for i, val in _npin_.items()]"
-    PINS_IMPORT = "from npin import *"
-    PINS_FILE = "npin.py"
+    PINS_RELOAD = "_npin_.reload() if '_npin_' in globals() else exec('import _npin_')"
+    PINS_READ = "_npin_.read() if '_npin_' in globals() else 0"
+    PINS_WRITE = "_npin_.write({}, {})  if '_npin_' in globals() else 0"
+    PINS_FILE = "_npin_.py"
+    PINS_IMPORT = "exec('import _npin_') if '_npin_.py' in __import__('os').listdir() else 0"
+    PINS_SETUP = """
+from machine import Pin
+
+def make():
+    for no, pin in pins.items():
+        pin[0].value(pin[3])
+        
+pins={{i: [Pin(i, j), j, name, val] for i,j,name,val in {}}}
+make()
+
+def reload():
+    import sys
+    if "_npin_" in sys.modules:
+        del sys.modules["_npin_"]
+    exec('import _npin_')
+    read()
+
+def read():
+    for k, v in pins.items():
+        print('PIN:', k,v[0].value(),v[1],v[2])
+
+def write(pin_no, value):
+    if pin_no in pins:
+        pins[pin_no][0].value(value)
+    read()
+"""
 
     MEMORY = "__import__('micropython').mem_info()"
     """

@@ -515,7 +515,7 @@ class NESP_OT_Communication(Operator, Nodal):
         bpy.ops.nesp.pins(action="reload")
 
         # boot dosyasını oku.
-        Timer(1, lambda: self.pr_com.queue_list.append((WR_KEY._FILE_READ, "boot.py"))).start()
+        Timer(1, lambda: self.pr_com.queue_list.append((WR_KEY._FILE_READ, WR_CMD.BOOT_FILE))).start()
 
         return self.timer_add(context)
 
@@ -1279,7 +1279,7 @@ class NESP_UL_Pins(UIList):
 
         else:
             # row.label(text=f"{item.no} | {('O' if is_out else 'I')} | {item.name}",
-            row.label(text=f"{item.no}   {item.name}",
+            row.label(text="{:02}   {}".format(item.no, item.name),
                       icon=("PINNED" if is_out else "UNPINNED"))
 
         if is_out:
@@ -1393,8 +1393,7 @@ class NESP_OT_Pins(Operator):
         if self.pin_value:
             # Pin durumunu değiştir
             no, value = self.pin_value.split()
-            cv = f"_npin_[{no}][0].value({value}) if '_npin_' in globals() and {no} in _npin_ else 0"
-            pr_com.queue_list.append(cv)
+            pr_com.queue_list.append(WR_CMD.PINS_WRITE.format(no, value))
 
         elif self.action == "add":
             pinler = {
@@ -1427,13 +1426,14 @@ class NESP_OT_Pins(Operator):
 
         elif self.action == "upload":
             il = [(i.no, int(i.io), i.name, i.value) for i in pr_pin.items]
-            pins_create = WR_CMD.PINS.format(il)
-            pins_write = WR_CMD.PINS_WRITE
-            pr_com.queue_list.append(pins_create)
-            pr_com.queue_list.append(pins_write)
+            # pins_create = WR_CMD.PINS.format(il)
+            # pins_write = WR_CMD.PINS_WRITE
+            # pr_com.queue_list.append(pins_create)
+            # pr_com.queue_list.append(pins_write)
 
             # Pinler modülünü karşıya yaz
-            pr_com.queue_list.append((WR_KEY._FILE_WRITE, "\n".join([pins_create, pins_write]), WR_CMD.PINS_FILE))
+            # pr_com.queue_list.append((WR_KEY._FILE_WRITE, "\n".join([pins_create, pins_write]), WR_CMD.PINS_FILE))
+            pr_com.queue_list.append((WR_KEY._FILE_WRITE, WR_CMD.PINS_SETUP.format(il), WR_CMD.PINS_FILE))
 
             # boot dosyasında pin import yoksa, importu ekle
             if WR_CMD.BOOT_FILE in bpy.data.texts:
@@ -1447,10 +1447,15 @@ class NESP_OT_Pins(Operator):
                     # Boot modülünü karşıya yaz
                     pr_com.queue_list.append((WR_KEY._FILE_WRITE, txt_file.as_string(), WR_CMD.BOOT_FILE))
 
-        if self.action in ("reload", "download", "upload") or self.pin_value:
+            # after_reload = 1
+            # Timer(0.2, lambda: pr_com.queue_list.append(WR_CMD.PINS_RELOAD)).start()
+            pr_com.queue_list.append(WR_CMD.PINS_RELOAD)
+
+        if self.action in ("reload", "download", "upload"):
             pr_pin.items.clear()
             pr_pin.active_item_index = 0
-            Timer(0.2, lambda: pr_com.queue_list.append(WR_CMD.PINS_READ)).start()
+            pr_com.queue_list.append(WR_CMD.PINS_READ)
+            # Timer(.2, lambda: pr_com.queue_list.append(WR_CMD.PINS_READ)).start()
 
         self.pin_value = ""
         return {'FINISHED'}
