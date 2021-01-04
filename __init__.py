@@ -599,6 +599,7 @@ class NESP_OT_Communication(Operator, Nodal):
 
                         data = self.pr_pin
                         isok = False
+                        # Item'lerde varsa güncelle.
                         for p in data.items:
                             if p.no == no:
                                 p.io = io
@@ -606,6 +607,7 @@ class NESP_OT_Communication(Operator, Nodal):
                                 p.value = value
                                 isok = True
 
+                        # Itemlerde yoksa, yeni oluştur.
                         if not isok:
                             item = data.items.add()
                             item.no = no
@@ -736,6 +738,8 @@ class NESP_OT_Communication(Operator, Nodal):
                 else:
                     self.pr_com.append_incoming(i)
 
+            if context.area:
+                context.area.tag_redraw()
             # a = dev.receives
             # if a:
             #     a.clear()
@@ -1452,8 +1456,8 @@ class NESP_OT_Pins(Operator):
             pr_com.queue_list.append(WR_CMD.PINS_RELOAD)
 
         if self.action in ("reload", "download", "upload"):
-            pr_pin.items.clear()
-            pr_pin.active_item_index = 0
+            # pr_pin.items.clear()
+            # pr_pin.active_item_index = 0
             pr_com.queue_list.append(WR_CMD.PINS_READ)
             # Timer(.2, lambda: pr_com.queue_list.append(WR_CMD.PINS_READ)).start()
 
