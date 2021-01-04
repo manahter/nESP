@@ -594,7 +594,7 @@ class NESP_OT_Communication(Operator, Nodal):
                     if len(ans) == 4:
                         no = int(ans[0])
                         value = bool(int(ans[1]))
-                        io = bool(int(ans[2]))
+                        io = str(ans[2])
                         name = str(ans[3])
 
                         data = self.pr_pin
@@ -1273,7 +1273,7 @@ class NESP_UL_Pins(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_propname):
         row = layout.row(align=True)
         is_setup = data.mode == "setup"
-        is_out = item.io
+        is_out = item.io == "Pin.OUT"
         if is_setup:
             row.prop(item, "io", text="", icon=("PINNED" if is_out else "UNPINNED"))
             row.prop(item, "no", text="")
@@ -1311,7 +1311,10 @@ class NESP_PR_PinItem(PropertyGroup):
         min=0,
         max=50
     )
-    io: BoolProperty(
+    io: EnumProperty(
+        items=[("Pin.IN", "Pin.IN", ""),
+               ("Pin.OUT", "Pin.OUT", "")
+               ],
         name="Pin Input/Output",
         description="Fill: Output, Unfill: Input"
     )
@@ -1412,7 +1415,7 @@ class NESP_OT_Pins(Operator):
 
             item = pr_pin.items.add()
             item.no = pin_list[0] if pin_list else 0
-            item.io = True
+            item.io = "Pin.OUT"
             item.name = "Pin Name"
             pr_pin.active_item_index = len(pr_pin.items) - 1
 
@@ -1429,7 +1432,7 @@ class NESP_OT_Pins(Operator):
             pr_pin.items.clear()
 
         elif self.action == "upload":
-            il = [(i.no, int(i.io), i.name, i.value) for i in pr_pin.items]
+            il = [(i.no, i.io, i.name, i.value) for i in pr_pin.items]
             # pins_create = WR_CMD.PINS.format(il)
             # pins_write = WR_CMD.PINS_WRITE
             # pr_com.queue_list.append(pins_create)

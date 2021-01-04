@@ -431,7 +431,7 @@ def make():
     for no, pin in pins.items():
         pin[0].value(pin[3])
         
-pins={{i: [Pin(i, j), j, name, val] for i,j,name,val in {}}}
+pins={{i: [Pin(i, eval(j)), j, name, val] for i,j,name,val in {}}}
 make()
 
 def reload():
