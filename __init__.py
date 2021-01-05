@@ -504,6 +504,7 @@ class NESP_OT_Communication(Operator, Nodal):
         self.pr_dev = context.scene.nesp_pr_device
         self.pr_fsy = context.scene.nesp_pr_filesystem
         self.pr_pin = context.scene.nesp_pr_pins
+        self.pr_pin.items.clear()
 
         # platformu öğren
         bpy.ops.nesp.commands(command=WR_CMD.PLATFORM)
@@ -1374,6 +1375,24 @@ class NESP_PR_Pin(PropertyGroup):
         del Scene.nesp_pr_pins
 
 
+import numpy as np
+
+
+def img2rgb565(img):
+    len_p = len(img.pixels) / 4
+    line_count = 0
+    lines = []
+    line = []
+    for r, g, b, a in np.array_split(img.pixels[:], len_p):
+        line.append(str((int(r * 31) << 11) | (int(g * 63) << 5) | (int(b * 31))))
+        line_count += 1
+        if line_count == 16:
+            lines.append(" ".join(line))
+            line.clear()
+            line_count = 0
+    return "\n".join(lines)
+
+
 class NESP_OT_Pins(Operator):
     bl_idname = "nesp.pins"
     bl_label = "nESP Pins"
@@ -1388,6 +1407,7 @@ class NESP_OT_Pins(Operator):
             ("download", "Download", ""),
             ("upload", "Upload", ""),
             ("reload", "Reload", ""),
+            ("img", "", "")
         ]
     )
     pin_value: StringProperty()
@@ -1401,6 +1421,11 @@ class NESP_OT_Pins(Operator):
             # Pin durumunu değiştir
             no, value = self.pin_value.split()
             pr_com.queue_list.append(WR_CMD.PINS_WRITE.format(no, value))
+
+        # elif self.action == "img":
+        #     o = img2rgb565(bpy.data.images["disp.png"])
+        #     print("Bu 1 o", o)
+        #     pr_com.queue_list.append((WR_KEY._FILE_WRITE, o, "disp"))
 
         elif self.action == "add":
             pinler = {
@@ -1507,6 +1532,7 @@ class NESP_PT_Pins(Panel):
         col1.operator("nesp.pins", text="", icon="ADD").action = "add"
         col1.operator("nesp.pins", text="", icon="REMOVE").action = "remove"
         col1.operator("nesp.pins", text="", icon="TRASH").action = "clear"
+        # col1.operator("nesp.pins", text="", icon="FILE").action = "img"
         col1.separator()
         # col1.label(text="", icon="BLANK1")
         col1.separator()

@@ -427,12 +427,7 @@ class WR_CMD:
     PINS_SETUP = """
 from machine import Pin
 
-def make():
-    for no, pin in pins.items():
-        pin[0].value(pin[3])
-        
-pins={{i: [Pin(i, eval(j)), j, name, val] for i,j,name,val in {}}}
-make()
+pins={{i: [Pin(i, eval(io), value=val), io, name] for i, io, name, val in {}}}
 
 def reload():
     import sys
@@ -547,6 +542,94 @@ def write(pin_no, value):
     # Gönderirken, binary olmasına dikkat et;
     # wr.send(CMD.FWR.format("ay.py", data.encode("utf-8")))
     # print('DIR:', (type(pins) in (int, str, dict, bool, float, list, tuple), dir(pins), str(pins)))
+
+    ST7789_FILE = """
+from machine import Pin, SPI
+import vga1_8x16 as font
+import st7789
+
+class st7789n(st7789.ST7789):
+    _x_start = 53
+    _y_start = 40
+    _row_max = 16
+    _col_max = 15
+    _line_no = 0
+    _spacing = 15
+    _rot = 0
+    
+    def __class__(self, *args, **kwargs):
+        super().__class__(*args, **kwargs)
+        if "rotation" in kwargs:
+            self.rotation(kwargs.get("rotation"))
+        
+    def rotation(self, no):
+        super().rotation(no)
+        self._rot = no
+        w = self.width()
+        h = self.height()
+        if no % 2:
+            self._x_start = 40
+            self._y_start = 53
+            self._row_max = w // 8 - 1
+            self._col_max = h // 15
+        else:
+            self._x_start = 53
+            self._y_start = 40
+            self._row_max = w // 8
+            self._col_max = h // 16
+            
+        self._line_no = 0
+        self.fill(st7789.BLACK)
+    
+    def clear(self):
+        self.rotation(self._rot)
+    
+    def new_line(self, text, text_color=st7789.WHITE, back_color=st7789.BLACK):
+        _row_max = self._row_max
+        while len(text):            
+            if len(text) > _row_max:
+                yaz = text[:_row_max]
+                text = text[_row_max:]
+            else:
+                yaz = text
+                text = ""
+                
+            self.text(font, " " * _row_max, 0, 0, text_color, back_color)
+            self.text(font, yaz, 0, 0, text_color, back_color)
+            
+            self._line_no = 0 if self._line_no == self._col_max - 1 else self._line_no + 1
+            
+            self.offset(self._x_start, self._y_start + self._line_no * self._spacing)
+            
+    
+    def display_from_path(self, path):
+        # Dosya içeriği şu şekilde, yazılmış olmalı;
+        # 123 456 789 123
+        # 123,456,789,123
+        no = 0
+        with open(path) as f:
+            line = f.readline()
+            while line:
+                for rgb in line.split(" ,"):
+                    y = no % 240
+                    x = no // 240
+                    self.pixel(x, y, int(rgb))
+                    no += 1
+                line = f.readline()
+    
+    def display_from_data(self, data):
+        for no, rgb in enumerate(data):
+            y = no % 240
+            x = no // 240
+            self.pixel(x, y, rgb)
+
+
+spi = SPI(2, baudrate=30000000, polarity=1, phase=1, sck=Pin(18), mosi=Pin(19))
+
+screen = st7789n(spi, 135, 240, reset=Pin(23, Pin.OUT), cs=Pin(5, Pin.OUT), dc=Pin(16, Pin.OUT), backlight=Pin(4, Pin.OUT)) # , rotation=1)
+
+screen.init()
+"""
 
 
 # wr.send("import machine;print(machine.idle())")     # -> 6406678
