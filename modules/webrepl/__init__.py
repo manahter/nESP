@@ -543,7 +543,10 @@ def write(pin_no, value):
     # wr.send(CMD.FWR.format("ay.py", data.encode("utf-8")))
     # print('DIR:', (type(pins) in (int, str, dict, bool, float, list, tuple), dir(pins), str(pins)))
 
-    ST7789_FILE = """
+    ST7789_IMPORT = "exec('from screen import screen') if 'screen.py' in __import__('os').listdir() else 0"
+    ST7789_FILE = "screen.py"
+    ST7789_PRINT = "screen.new_line('{}')"
+    ST7789_SETUP = """
 from machine import Pin, SPI
 import vga1_8x16 as font
 import st7789
@@ -584,7 +587,7 @@ class st7789n(st7789.ST7789):
     def clear(self):
         self.rotation(self._rot)
     
-    def new_line(self, text, text_color=st7789.WHITE, back_color=st7789.BLACK):
+    def new_line(self, text, text_color={}, back_color={}):
         _row_max = self._row_max
         while len(text):            
             if len(text) > _row_max:
@@ -593,12 +596,19 @@ class st7789n(st7789.ST7789):
             else:
                 yaz = text
                 text = ""
+            
+            if self._line_no == 0:
+                self.fill(st7789.BLACK)
+            else:
+                self.text(font, " " * _row_max, 0, 0, text_color, back_color)
                 
-            self.text(font, " " * _row_max, 0, 0, text_color, back_color)
             self.text(font, yaz, 0, 0, text_color, back_color)
             
-            self._line_no = 0 if self._line_no == self._col_max - 1 else self._line_no + 1
+            self._line_no += 1
             
+            if self._line_no == self._col_max:
+                self._line_no = 0
+                
             self.offset(self._x_start, self._y_start + self._line_no * self._spacing)
             
     
@@ -626,10 +636,16 @@ class st7789n(st7789.ST7789):
 
 spi = SPI(2, baudrate=30000000, polarity=1, phase=1, sck=Pin(18), mosi=Pin(19))
 
-screen = st7789n(spi, 135, 240, reset=Pin(23, Pin.OUT), cs=Pin(5, Pin.OUT), dc=Pin(16, Pin.OUT), backlight=Pin(4, Pin.OUT)) # , rotation=1)
-
+screen = st7789n(spi, {}, {}, 
+                 reset=Pin(23, Pin.OUT), 
+                 cs=Pin(5, Pin.OUT), 
+                 dc=Pin(16, Pin.OUT), 
+                 backlight=Pin(4, Pin.OUT), 
+                 )
+screen.rotation({})
 screen.init()
-"""
+""" # .format(color_front, color_back, width, height, rotation)
+# .format(65535, 0, 135, 240, 1)
 
 
 # wr.send("import machine;print(machine.idle())")     # -> 6406678

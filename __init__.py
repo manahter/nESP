@@ -1375,24 +1375,6 @@ class NESP_PR_Pin(PropertyGroup):
         del Scene.nesp_pr_pins
 
 
-import numpy as np
-
-
-def img2rgb565(img):
-    len_p = len(img.pixels) / 4
-    line_count = 0
-    lines = []
-    line = []
-    for r, g, b, a in np.array_split(img.pixels[:], len_p):
-        line.append(str((int(r * 31) << 11) | (int(g * 63) << 5) | (int(b * 31))))
-        line_count += 1
-        if line_count == 16:
-            lines.append(" ".join(line))
-            line.clear()
-            line_count = 0
-    return "\n".join(lines)
-
-
 class NESP_OT_Pins(Operator):
     bl_idname = "nesp.pins"
     bl_label = "nESP Pins"
@@ -1504,7 +1486,7 @@ class NESP_PT_Pins(Panel):
         pr = context.scene.nesp_pr_pins
 
         layout = self.layout
-        # layout.enabled = context.scene.nesp_pr_connection.isconnected
+        layout.enabled = context.scene.nesp_pr_connection.isconnected
         row1 = layout.row(align=True)
         row1.operator("nesp.pins", text="", icon="FILE_REFRESH").action = "reload"
         row1.separator()
@@ -1521,8 +1503,6 @@ class NESP_PT_Pins(Panel):
         # row2.label(text=" ", icon="BLANK1")
         # row2.operator("nesp.pins", text="", icon="IMPORT").action = "import"
         # row2.operator("nesp.pins", text="", icon="EXPORT").action = "export"
-
-
 
         # ######################################
         # ############################## ListBox
@@ -1551,6 +1531,173 @@ class NESP_PT_Pins(Panel):
         )
 
 
+import numpy as np
+
+
+def img2rgb565(img):
+    len_p = len(img.pixels) / 4
+    line_count = 0
+    lines = []
+    line = []
+    for r, g, b, a in np.array_split(img.pixels[:], len_p):
+        line.append(str((int(r * 31) << 11) | (int(g * 63) << 5) | (int(b * 31))))
+        line_count += 1
+        if line_count == 16:
+            lines.append(" ".join(line))
+            line.clear()
+            line_count = 0
+    return "\n".join(lines)
+
+
+def color2rgb565(color=[0, 0, 0]):
+    return (int(color[0] * 31) << 11) | (int(color[1] * 63) << 5) | (int(color[2] * 31))
+
+
+class NESP_PR_Display(PropertyGroup):
+    width: IntProperty(
+        name="Screen Width",
+        default=135
+    )
+    height: IntProperty(
+        name="Screen Height",
+        default=240
+    )
+    color_back: FloatVectorProperty(
+        name="Color Back",
+        subtype="COLOR",
+        default=[0, 0, 0]
+    )
+    color_front: FloatVectorProperty(
+        name="Color Front",
+        subtype="COLOR",
+        default=[1, 1, 1]
+    )
+    rotation: IntProperty(
+        min=0,
+        max=3
+    )
+
+    def update_newline(self, context):
+        if not self.newline:
+            return
+        context.scene.nesp_pr_communication.queue_list.append(WR_CMD.ST7789_PRINT.format(self.newline))
+        self.newline = ""
+
+    newline: StringProperty(
+        name="Print",
+        update=update_newline
+    )
+
+    @classmethod
+    def register(cls):
+        Scene.nesp_pr_display = PointerProperty(
+            name="NESP_PR_Display Name",
+            description="NESP_PR_Display Description",
+            type=cls
+        )
+
+    @classmethod
+    def unregister(cls):
+        del Scene.nesp_pr_display
+
+
+class NESP_OT_Display(Operator):
+    bl_idname = "nesp.display"
+    bl_label = "Display"
+    bl_options = {'REGISTER'}
+    bl_description = ""
+
+    action: EnumProperty(
+        items=[
+            ("setup", "Setup", "")
+        ]
+    )
+    pin_value: StringProperty()
+
+    def execute(self, context):
+        pr_com = context.scene.nesp_pr_communication
+        pr_dsp = context.scene.nesp_pr_display
+
+        if self.action == "setup":
+            # Screen modülünü karşıya yaz
+            # pr_com.queue_list.append((WR_KEY._FILE_WRITE, "\n".join([pins_create, pins_write]), WR_CMD.PINS_FILE))
+            pr_com.queue_list.append((WR_KEY._FILE_WRITE,
+                                      WR_CMD.ST7789_SETUP.format(color2rgb565(pr_dsp.color_front),
+                                                                 color2rgb565(pr_dsp.color_back),
+                                                                 pr_dsp.width,
+                                                                 pr_dsp.height,
+                                                                 pr_dsp.rotation
+                                                                 ),
+                                      WR_CMD.ST7789_FILE))
+
+            # boot dosyasında pin import yoksa, importu ekle
+            if WR_CMD.BOOT_FILE in bpy.data.texts:
+                imp = WR_CMD.ST7789_IMPORT
+                txt_file = bpy.data.texts[WR_CMD.BOOT_FILE]
+                if not any([i.body.startswith(imp) for i in txt_file.lines]):
+
+                    txt_file.cursor_set(0)
+                    txt_file.write(f"{imp}\n")
+
+                    # Boot modülünü karşıya yaz
+                    pr_com.queue_list.append((WR_KEY._FILE_WRITE, txt_file.as_string(), WR_CMD.BOOT_FILE))
+
+        return {'FINISHED'}
+
+
+class NESP_PT_Display(Panel):
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "nESP"
+    bl_label = "Display"
+    bl_idname = "NESP_PT_display"
+
+    def draw(self, context):
+        pr = context.scene.nesp_pr_display
+
+        # layout.enabled = context.scene.nesp_pr_connection.isconnected
+        self.layout.prop(pr, "newline")
+
+
+class NESP_PT_DisplaySetup(Panel):
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "nESP"
+    bl_label = ""
+    bl_parent_id = "NESP_PT_display"
+    bl_options = {'DEFAULT_CLOSED'}
+
+    def draw(self, context):
+        pr = context.scene.nesp_pr_display
+
+        layout = self.layout
+        layout.enabled = context.scene.nesp_pr_connection.isconnected
+        row = layout.row()
+        col1 = row.column()
+        col1.label(text="")
+        col1.label(text="Width")
+        col1.label(text="Height")
+        col1.label(text="Rotation")
+        col1.label(text="")
+        col1.label(text="Back")
+        col1.label(text="Front")
+        col1.scale_x = 1
+
+        col2 = row.column()
+        col2.label(text="Screen")
+        col2.prop(pr, "width", text="")
+        col2.prop(pr, "height", text="")
+        col2.prop(pr, "rotation", text="")
+        col2.label(text="Color")
+        col2.prop(pr, "color_back", text="")
+        col2.prop(pr, "color_front", text="")
+        col1.scale_x = .3
+
+    def draw_header(self, context):
+        self.layout.enabled = context.scene.nesp_pr_connection.isconnected
+        self.layout.operator("nesp.display", text="Setup", icon="RESTRICT_VIEW_OFF").action = "setup"
+
+
 classes = [
     NESP_PR_Connection,
     NESP_OT_Connection,
@@ -1575,11 +1722,17 @@ classes = [
     NESP_PR_FileSystem,
     NESP_OT_FileSystem,
     NESP_PT_FileSystem,
-NESP_UL_Pins,
-NESP_PR_PinItem,
-NESP_PR_Pin,
-NESP_OT_Pins,
-NESP_PT_Pins,
+
+    NESP_UL_Pins,
+    NESP_PR_PinItem,
+    NESP_PR_Pin,
+    NESP_OT_Pins,
+    NESP_PT_Pins,
+
+    NESP_PR_Display,
+    NESP_OT_Display,
+    NESP_PT_Display,
+    NESP_PT_DisplaySetup
 ]
 
 
