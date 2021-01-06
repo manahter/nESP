@@ -62,6 +62,8 @@ from .modules.webrepl import Webrepl, WR_CMD, WR_KEY
 from .modules.rapor import blender_plug
 
 dev = None
+# TODO!!! STA/AP modu açıp kapatma kısmını yap
+#         Serial iletişim kısmı da eklenebilir.
 
 
 class NESP_PR_Connection(PropertyGroup):
