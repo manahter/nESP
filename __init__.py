@@ -1609,7 +1609,10 @@ class NESP_OT_Display(Operator):
 
     action: EnumProperty(
         items=[
-            ("setup", "Setup", "")
+            ("setup", "Setup", ""),
+            ("clear", "Clear", ""),
+            ("turn_left", "Turn Left", ""),
+            ("turn_right", "Turn Right", ""),
         ]
     )
     pin_value: StringProperty()
@@ -1642,6 +1645,15 @@ class NESP_OT_Display(Operator):
                     # Boot modülünü karşıya yaz
                     pr_com.queue_list.append((WR_KEY._FILE_WRITE, txt_file.as_string(), WR_CMD.BOOT_FILE))
 
+        elif self.action == "turn_left":
+            pr_com.queue_list.append(WR_CMD.ST7789_TURN.format(-1))
+
+        elif self.action == "turn_right":
+            pr_com.queue_list.append(WR_CMD.ST7789_TURN.format(1))
+
+        elif self.action == "clear":
+            pr_com.queue_list.append(WR_CMD.ST7789_CLEAR)
+
         return {'FINISHED'}
 
 
@@ -1655,8 +1667,16 @@ class NESP_PT_Display(Panel):
     def draw(self, context):
         pr = context.scene.nesp_pr_display
 
-        # layout.enabled = context.scene.nesp_pr_connection.isconnected
-        self.layout.prop(pr, "newline")
+        layout = self.layout
+        layout.enabled = context.scene.nesp_pr_connection.isconnected
+
+        row = layout.row(align=True)
+        #row.label(text="Turn Screen")
+        row.operator("nesp.display", text="Turn Left", icon="LOOP_BACK").action = "turn_left"
+        row.operator("nesp.display", text="Right", icon="LOOP_FORWARDS").action = "turn_right"
+        row.operator("nesp.display", text="Clear", icon="TRASH").action = "clear"
+
+        layout.prop(pr, "newline")
 
 
 class NESP_PT_DisplaySetup(Panel):

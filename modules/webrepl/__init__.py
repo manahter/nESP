@@ -543,6 +543,8 @@ def write(pin_no, value):
     # wr.send(CMD.FWR.format("ay.py", data.encode("utf-8")))
     # print('DIR:', (type(pins) in (int, str, dict, bool, float, list, tuple), dir(pins), str(pins)))
 
+    ST7789_CLEAR = "screen.clear()"
+    ST7789_TURN = "screen.rotation(turn={})"
     ST7789_IMPORT = "exec('from screen import screen') if 'screen.py' in __import__('os').listdir() else 0"
     ST7789_FILE = "screen.py"
     ST7789_PRINT = "screen.new_line('{}')"
@@ -565,9 +567,21 @@ class st7789n(st7789.ST7789):
         if "rotation" in kwargs:
             self.rotation(kwargs.get("rotation"))
         
-    def rotation(self, no):
-        super().rotation(no)
-        self._rot = no
+    def rotation(self, no=-1, turn=0):
+        # no: 0-3 arasi
+        # turn: 1-> Right
+        # turn: -1-> Left
+        if no > -1:
+            self._rot = no
+        elif turn > 0:
+            self._rot += 1
+        elif turn < 0:
+            self._rot -= 1
+        
+        no = self._rot = self._rot % 4
+        
+        super().rotation(self._rot)
+        
         w = self.width()
         h = self.height()
         if no % 2:
@@ -583,6 +597,9 @@ class st7789n(st7789.ST7789):
             
         self._line_no = 0
         self.fill(st7789.BLACK)
+        
+        return self._rot
+        
     
     def clear(self):
         self.rotation(self._rot)
@@ -613,24 +630,28 @@ class st7789n(st7789.ST7789):
             
     
     def display_from_path(self, path):
-        # Dosya içeriği şu şekilde, yazılmış olmalı;
+        # Dosya icerigi su sekilde, yazilmis olmali;
         # 123 456 789 123
         # 123,456,789,123
         no = 0
+        w = self.width()
+        h = self.height()
         with open(path) as f:
             line = f.readline()
             while line:
                 for rgb in line.split(" ,"):
-                    y = no % 240
-                    x = no // 240
+                    y = no % h
+                    x = no // w
                     self.pixel(x, y, int(rgb))
                     no += 1
                 line = f.readline()
     
     def display_from_data(self, data):
+        w = self.width()
+        h = self.height()
         for no, rgb in enumerate(data):
-            y = no % 240
-            x = no // 240
+            y = no % h
+            x = no // w
             self.pixel(x, y, rgb)
 
 
