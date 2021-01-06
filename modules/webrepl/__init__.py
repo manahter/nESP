@@ -543,8 +543,8 @@ def write(pin_no, value):
     # wr.send(CMD.FWR.format("ay.py", data.encode("utf-8")))
     # print('DIR:', (type(pins) in (int, str, dict, bool, float, list, tuple), dir(pins), str(pins)))
 
-    ST7789_CLEAR = "screen.clear()"
-    ST7789_TURN = "screen.rotation(turn={})"
+    ST7789_CLEAR = "screen.clear() if 'screen' in in globals() else 0"
+    ST7789_TURN = "screen.rotation(turn={}) if 'screen' in in globals() else 0"
     ST7789_IMPORT = "exec('from screen import screen') if 'screen.py' in __import__('os').listdir() else 0"
     ST7789_FILE = "screen.py"
     ST7789_PRINT = "screen.new_line('{}')"
