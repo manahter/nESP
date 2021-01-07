@@ -1552,7 +1552,6 @@ def img2rgb565(img):
 
 
 def color2rgb565(color=[0, 0, 0]):
-    print("Color", color)
     r = color[0]
     g = color[1]
     b = color[2]
