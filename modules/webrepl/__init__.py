@@ -543,11 +543,12 @@ def write(pin_no, value):
     # wr.send(CMD.FWR.format("ay.py", data.encode("utf-8")))
     # print('DIR:', (type(pins) in (int, str, dict, bool, float, list, tuple), dir(pins), str(pins)))
 
-    ST7789_CLEAR = "screen.clear() if 'screen' in in globals() else 0"
-    ST7789_TURN = "screen.rotation(turn={}) if 'screen' in in globals() else 0"
+    ST7789_CLEAR = "screen.clear() if 'screen' in globals() else 0"
+    ST7789_TURN = "screen.rotation(turn={}) if 'screen' in globals() else 0"
     ST7789_IMPORT = "exec('from screen import screen') if 'screen.py' in __import__('os').listdir() else 0"
     ST7789_FILE = "screen.py"
-    ST7789_PRINT = "screen.new_line('{}')"
+    ST7789_PRINT = "screen.new_line('{}', text_color={}, back_color={})"
+    ST7789_FILL = "screen.rotation();screen.fill({})"
     ST7789_SETUP = """
 from machine import Pin, SPI
 import vga1_8x16 as font
@@ -561,6 +562,7 @@ class st7789n(st7789.ST7789):
     _line_no = 0
     _spacing = 15
     _rot = 0
+    _fil = 0
     
     def __class__(self, *args, **kwargs):
         super().__class__(*args, **kwargs)
@@ -596,13 +598,16 @@ class st7789n(st7789.ST7789):
             self._col_max = h // 16
             
         self._line_no = 0
-        self.fill(st7789.BLACK)
+        self.fill(self._fil or st7789.BLACK)
         
         return self._rot
         
-    
+    def fill(self, color):
+        super().fill(color)
+        self._fil = color
+        
     def clear(self):
-        self.rotation(self._rot)
+        self.rotation()
     
     def new_line(self, text, text_color={}, back_color={}):
         _row_max = self._row_max
@@ -615,9 +620,9 @@ class st7789n(st7789.ST7789):
                 text = ""
             
             if self._line_no == 0:
-                self.fill(st7789.BLACK)
-            else:
-                self.text(font, " " * _row_max, 0, 0, text_color, back_color)
+                self.fill(self._fil or st7789.BLACK)
+            
+            self.text(font, " " * _row_max, 0, 0, text_color, back_color)
                 
             self.text(font, yaz, 0, 0, text_color, back_color)
             

@@ -1552,7 +1552,11 @@ def img2rgb565(img):
 
 
 def color2rgb565(color=[0, 0, 0]):
-    return (int(color[0] * 31) << 11) | (int(color[1] * 63) << 5) | (int(color[2] * 31))
+    print("Color", color)
+    r = color[0]
+    g = color[1]
+    b = color[2]
+    return (int(r * 31) << 11) | (int(g * 63) << 5) | (int(b * 31))
 
 
 class NESP_PR_Display(PropertyGroup):
@@ -1564,15 +1568,23 @@ class NESP_PR_Display(PropertyGroup):
         name="Screen Height",
         default=240
     )
+    color_fill: FloatVectorProperty(
+        name="Color Front",
+        subtype="COLOR",
+        default=[0.0, 0.0, 0.0],
+        min=0.0, max=1.0,
+    )
     color_back: FloatVectorProperty(
         name="Color Back",
         subtype="COLOR",
-        default=[0, 0, 0]
+        default=[0.0, 0.0, 0.0],
+        min=0.0, max=1.0,
     )
     color_front: FloatVectorProperty(
         name="Color Front",
         subtype="COLOR",
-        default=[1, 1, 1]
+        default=[1.0, 1.0, 1.0],
+        min=0.0, max=1.0,
     )
     rotation: IntProperty(
         min=0,
@@ -1582,7 +1594,13 @@ class NESP_PR_Display(PropertyGroup):
     def update_newline(self, context):
         if not self.newline:
             return
-        context.scene.nesp_pr_communication.queue_list.append(WR_CMD.ST7789_PRINT.format(self.newline))
+        context.scene.nesp_pr_communication.queue_list.append(
+            WR_CMD.ST7789_PRINT.format(
+                self.newline,
+                color2rgb565(self.color_front),
+                color2rgb565(self.color_back)
+            )
+        )
         self.newline = ""
 
     newline: StringProperty(
@@ -1613,6 +1631,7 @@ class NESP_OT_Display(Operator):
         items=[
             ("setup", "Setup", ""),
             ("clear", "Clear", ""),
+            ("fill", "Fill", ""),
             ("turn_left", "Turn Left", ""),
             ("turn_right", "Turn Right", ""),
         ]
@@ -1656,6 +1675,9 @@ class NESP_OT_Display(Operator):
         elif self.action == "clear":
             pr_com.queue_list.append(WR_CMD.ST7789_CLEAR)
 
+        elif self.action == "fill":
+            pr_com.queue_list.append(WR_CMD.ST7789_FILL.format(color2rgb565(pr_dsp.color_fill)))
+
         return {'FINISHED'}
 
 
@@ -1670,15 +1692,30 @@ class NESP_PT_Display(Panel):
         pr = context.scene.nesp_pr_display
 
         layout = self.layout
-        layout.enabled = context.scene.nesp_pr_connection.isconnected
+        # layout.enabled = context.scene.nesp_pr_connection.isconnected
 
         row = layout.row(align=True)
-        #row.label(text="Turn Screen")
         row.operator("nesp.display", text="Turn Left", icon="LOOP_BACK").action = "turn_left"
         row.operator("nesp.display", text="Right", icon="LOOP_FORWARDS").action = "turn_right"
         row.operator("nesp.display", text="Clear", icon="TRASH").action = "clear"
 
-        layout.prop(pr, "newline")
+        row = layout.row(align=True)
+        col1 = row.column()
+        col1.label(text="Print")
+        col1.label(text="Back")
+        col1.label(text="Front")
+        col1.label(text="Fill")
+        col1.scale_x = 1
+
+        col2 = row.column()
+        col2.prop(pr, "newline", text="")
+        col2.prop(pr, "color_back", text="")
+        col2.prop(pr, "color_front", text="")
+
+        row = col2.row(align=True)
+        row.prop(pr, "color_fill", text="")
+        row.operator("nesp.display", text="", icon="PLAY").action = "fill"
+        col1.scale_x = .3
 
 
 class NESP_PT_DisplaySetup(Panel):
