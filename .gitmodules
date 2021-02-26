@@ -1,0 +1,3 @@
+[submodule "modules/Tarag"]
+	path = modules/Tarag
+	url = https://github.com/manahter/Tarag
