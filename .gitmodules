@@ -1,3 +1,6 @@
 [submodule "modules/Tarag"]
 	path = modules/Tarag
 	url = https://github.com/manahter/Tarag
+[submodule "modules/rapor"]
+	path = modules/rapor
+	url = https://github.com/manahter/rapor
