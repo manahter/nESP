@@ -57,7 +57,7 @@ bl_info = {
 }
 from .utils.nodal import Nodal, register_modal, unregister_modal
 from .modules.dirio import Dirio
-from .modules.scanag import scanag
+from .modules.Tarag import tarag
 from .modules.webrepl import Webrepl, WR_CMD, WR_KEY
 from .modules.rapor import blender_plug
 
@@ -69,11 +69,11 @@ dev = None
 class NESP_PR_Connection(PropertyGroup):
 
     def get_isscanning(self):
-        return scanag.inprocess
+        return tarag.inprocess
 
     def set_isscanning(self, value):
         if value:
-            scanag.scan()
+            tarag.scan()
 
     isscanning: BoolProperty(
         name="Is Scanning?",
@@ -121,7 +121,7 @@ class NESP_PR_Connection(PropertyGroup):
     )
 
     def get_devices(self, context):
-        return [(i[0], i[0] + " {:1.13}".format(i[2]), i[1]) for i in scanag.devices(only_esp=self.scantype == "esp")]
+        return [(i[0], i[0] + " {:1.13}".format(i[2]), i[1]) for i in tarag.devices(only_esp=self.scantype == "esp")]
 
     device: EnumProperty(
         name="Select Device",
@@ -160,7 +160,7 @@ class NESP_PR_Connection(PropertyGroup):
         if dev:
             dev.disconnect()
             dev.dr_terminate()
-        scanag.inprocess = False
+        tarag.inprocess = False
         del Scene.nesp_pr_connection
 
 
@@ -206,7 +206,7 @@ class NESP_OT_Connection(Operator, Nodal):
                 dev.start()
 
                 pr_dev.ip = pr_con.device
-                for i in scanag.devices():
+                for i in tarag.devices():
                     if i[0] == ip:
                         pr_dev.ip = ip
                         pr_dev.mac = i[1]
